@@ -36,9 +36,29 @@ public class WebAccountController {
     public String showDashboard() {
         return "dashboard"; // templates/dashboard.html
     }
+
+    // Add Account page
     @GetMapping("/manageAccounts")
     public String showAddAccountPage() {
         return "manageAccounts"; // templates/manageAccounts.html
+    }
+    // New mapping for insurance.html
+    @GetMapping("/insurance")
+    public String showInsurancePage() {
+        return "insurance"; // templates/insurance.html
+    }
+
+    @GetMapping("/business")
+    public String showBusinessPage() {
+        return "business"; // templates/insurance.html
+    }
+    @GetMapping("/transact")
+    public String showTransactPage() {
+        return "transact"; // templates/insurance.html
+    }
+    @GetMapping("/credit")
+    public String showCreditPage() {
+        return "credit"; // templates/insurance.html
     }
 
     // Account creation form submission
