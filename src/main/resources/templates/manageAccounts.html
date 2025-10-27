@@ -45,7 +45,7 @@
     </div>
 </section>
 
-<!-- TRANSFER FUNDS MODAL -->
+<!-- TRANSFER MODAL -->
 <div id="transferModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -56,7 +56,8 @@
             <form id="transferForm">
                 <div class="form-group">
                     <label>From Account</label>
-                    <select id="fromAccount" class="form-control"></select>
+                    <input type="text" id="fromAccountDisplay" class="form-control" readonly>
+                    <input type="hidden" id="fromAccount">
                 </div>
 
                 <div class="form-group">
@@ -87,13 +88,12 @@
                 <div class="form-group">
                     <label>Select Account Type</label>
                     <select id="accountType" class="form-control">
-                        <option>💰 Savings Account - Earn interest</option>
-                        <option>🏢 Business Account - Manage your business</option>
-                        <option>💳 Credit Account - Access credit</option>
-                        <option>🏦 Fixed Deposit - Secure your money</option>
-                        <option>🌍 Forex Account - Trade currencies</option>
-                        <option>👨‍👩‍👧‍👦 Family Account - Manage family funds</option>
-
+                        <option>💰 Savings Account</option>
+                        <option>🏢 Business Account</option>
+                        <option>💳 Credit Account</option>
+                        <option>🏦 Fixed Deposit</option>
+                        <option>🌍 Forex Account</option>
+                        <option>👨‍👩‍👧‍👦 Family Account</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -115,8 +115,8 @@
 <!-- 🔥 Firebase Integration -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-    import { getDatabase, ref, get, set, push, update } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import { getDatabase, ref, get, push, set } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAljsKmPE-ydqESzPgXFBN2u5otm0WJCCQ",
@@ -133,132 +133,96 @@
     const auth = getAuth(app);
     let currentUserId = null;
 
-    // ✅ Automatically create main account during registration
-    async function registerUser(fullName, email, password) {
-        try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-
-            // Save user details
-            await set(ref(db, "users/" + user.uid), {
-                name: fullName,
-                email: email,
-                createdAt: new Date().toLocaleString()
-            });
-
-            // Create main account automatically
-            await set(ref(db, "accounts/" + user.uid + "/main"), {
-                type: "Main Account",
-                balance: 0,
-                accountNumber: Math.floor(100000 + Math.random() * 900000)
-            });
-
-            alert("Registration successful! Main Account created.");
-            window.location.href = "/dashboard";
-        } catch (error) {
-            alert("Error: " + error.message);
-        }
-    }
-
-    // Check authentication
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            currentUserId = user.uid;
-            loadAccounts();
-            loadTransactions();
-        } else {
-            window.location.href = "/";
-        }
-    });
-
-    /// ✅ Load all accounts (main + internal)
+    // ✅ Load Accounts
     async function loadAccounts() {
-      const grid = document.getElementById("accountsGrid");
-      grid.innerHTML = "";
+        const grid = document.getElementById("accountsGrid");
+        grid.innerHTML = "";
 
-      const accountsRef = ref(db, "accounts/" + currentUserId);
-      const snapshot = await get(accountsRef);
+        const userRef = ref(db, "accounts/" + currentUserId);
+        const snapshot = await get(userRef);
 
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const mainAccount = {
-          type: data.accountType || "Main Account",
-          balance: parseFloat(data.initialDeposit || 0),
-          accountNumber: data.idNumber || "000000"
-        };
+        if (snapshot.exists()) {
+            const data = snapshot.val();
 
-        // Main Account card
-        const mainCard = document.createElement("div");
-        mainCard.classList.add("feature-card");
-        mainCard.innerHTML = `
-          <h3>${mainAccount.type}</h3>
-          <p style="font-size:1.4rem; font-weight:bold;">R${mainAccount.balance.toFixed(2)}</p>
-          <p>**** ${mainAccount.accountNumber.slice(-4)}</p>
-          <button class="btn btn-secondary" onclick="openTransfer('main')">Transfer</button>
-        `;
-        grid.appendChild(mainCard);
+            // ✅ Main Account
+            const mainAccount = {
+                type: data.accountType || "Main Account",
+                balance: parseFloat(data.initialDeposit || 0),
+                accountNumber: data.idNumber || "000000"
+            };
 
-        // Internal accounts (child nodes)
-        Object.keys(data).forEach((key) => {
-          if (typeof data[key] === "object" && data[key].type) {
-            const acc = data[key];
-            const card = document.createElement("div");
-            card.classList.add("feature-card");
-            card.innerHTML = `
-              <h3>${acc.type}</h3>
-              <p style="font-size:1.4rem; font-weight:bold;">R${(acc.balance || 0).toFixed(2)}</p>
-              <p>**** ${acc.accountNumber || key.slice(-4)}</p>
-              <button class="btn btn-secondary" onclick="openTransfer('${key}')">Transfer</button>
+            const mainCard = document.createElement("div");
+            mainCard.classList.add("feature-card");
+            mainCard.innerHTML = `
+                <h3>${mainAccount.type}</h3>
+                <p style="font-size:1.4rem; font-weight:bold;">R${mainAccount.balance.toFixed(2)}</p>
+                <p>**** ${mainAccount.accountNumber.toString().slice(-4)}</p>
+                <button class="btn btn-secondary" onclick="openTransfer('main', '${mainAccount.type}', '${mainAccount.accountNumber}')">Transfer</button>
             `;
-            grid.appendChild(card);
-          }
-        });
-      }
+            grid.appendChild(mainCard);
 
+            // ✅ Internal Accounts
+            Object.keys(data).forEach((key) => {
+                if (typeof data[key] === "object" && data[key].type && key !== "transactions") {
+                    const acc = data[key];
+                    const card = document.createElement("div");
+                    card.classList.add("feature-card");
+                    card.innerHTML = `
+                        <h3>${acc.type}</h3>
+                        <p style="font-size:1.4rem; font-weight:bold;">R${(acc.balance || 0).toFixed(2)}</p>
+                        <p>**** ${acc.accountNumber || key.slice(-4)}</p>
+                        <button class="btn btn-secondary" onclick="openTransfer('${key}', '${acc.type}', '${acc.accountNumber}')">Transfer</button>
+                    `;
+                    grid.appendChild(card);
+                }
+            });
+        }
 
-        // Add "Create New Account" card
+        // ✅ Add “Create New Account” Card
         const createCard = document.createElement("div");
         createCard.classList.add("feature-card");
         createCard.style.cssText = "border-top:4px solid var(--primary-light); background:var(--light); text-align:center;";
         createCard.innerHTML = `
             <h3>Create New Account</h3>
-            <p>Open another savings, business, or credit account.</p>
+            <p>Open another account type.</p>
             <button class="btn btn-primary" onclick="openModal('createModal')">+ Create Internal Account</button>
         `;
         grid.appendChild(createCard);
 
-        populateTransferDropdowns();
+        populateToDropdown();
+        loadTransactions();
     }
 
-    // Populate dropdowns
-    async function populateTransferDropdowns() {
-        const fromSel = document.getElementById("fromAccount");
+    // ✅ Populate "To Account" Dropdown
+    async function populateToDropdown() {
         const toSel = document.getElementById("toAccount");
-        fromSel.innerHTML = "";
         toSel.innerHTML = "";
 
         const accountsRef = ref(db, "accounts/" + currentUserId);
         const snapshot = await get(accountsRef);
+
         if (snapshot.exists()) {
-            const accounts = snapshot.val();
-            Object.keys(accounts).forEach((key) => {
-                const acc = accounts[key];
-                if (!acc || acc.balance === undefined) return;
-                const option = `<option value="${key}">${acc.type} (**** ${acc.accountNumber || key.slice(-4)}) - R${acc.balance.toFixed(2)}</option>`;
-                fromSel.innerHTML += option;
-                toSel.innerHTML += option;
+            const data = snapshot.val();
+
+            toSel.innerHTML += `<option value="main">Main Account (**** ${data.idNumber?.slice(-4) || "0000"}) - R${parseFloat(data.initialDeposit || 0).toFixed(2)}</option>`;
+
+            Object.keys(data).forEach((key) => {
+                if (typeof data[key] === "object" && data[key].type && data[key].balance !== undefined) {
+                    const acc = data[key];
+                    toSel.innerHTML += `<option value="${key}">${acc.type} (**** ${acc.accountNumber || key.slice(-4)}) - R${(acc.balance || 0).toFixed(2)}</option>`;
+                }
             });
         }
     }
 
-    // Open transfer modal pre-selecting the "From Account"
-    window.openTransfer = async (fromKey) => {
+    // ✅ Transfer Logic
+    window.openTransfer = (fromKey, type, number) => {
         openModal('transferModal');
-        await populateTransferDropdowns();
         document.getElementById("fromAccount").value = fromKey;
+        document.getElementById("fromAccountDisplay").value = `${type} (**** ${number.toString().slice(-4)})`;
+        populateToDropdown();
     };
 
-    // Handle transfers
     document.getElementById("transferForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         const from = document.getElementById("fromAccount").value;
@@ -268,93 +232,108 @@
         if (!from || !to || from === to) return alert("Please select two different accounts.");
         if (isNaN(amount) || amount <= 0) return alert("Enter a valid amount.");
 
-        const fromRef = ref(db, `accounts/${currentUserId}/${from}`);
-        const toRef = ref(db, `accounts/${currentUserId}/${to}`);
-        const fromSnap = await get(fromRef);
-        const toSnap = await get(toRef);
+        const userRef = ref(db, "accounts/" + currentUserId);
+        const userSnap = await get(userRef);
+        if (!userSnap.exists()) return alert("User data not found.");
 
-        if (!fromSnap.exists() || !toSnap.exists()) return alert("Account not found.");
-        const fromAcc = fromSnap.val();
-        const toAcc = toSnap.val();
+        const data = userSnap.val();
+        let fromAcc, toAcc;
+
+        if (from === "main") fromAcc = { balance: parseFloat(data.initialDeposit || 0), type: "Main Account" };
+        else fromAcc = data[from];
+
+        if (to === "main") toAcc = { balance: parseFloat(data.initialDeposit || 0), type: "Main Account" };
+        else toAcc = data[to];
 
         if (fromAcc.balance < amount) return alert("Insufficient funds.");
 
-        await update(fromRef, { balance: fromAcc.balance - amount });
-        await update(toRef, { balance: toAcc.balance + amount });
+        // Update balances
+        if (from === "main") data.initialDeposit = fromAcc.balance - amount;
+        else data[from].balance = fromAcc.balance - amount;
 
-        const txRef = push(ref(db, `transactions/${currentUserId}`));
-        await set(txRef, {
+        if (to === "main") data.initialDeposit = toAcc.balance + amount;
+        else data[to].balance = (toAcc.balance || 0) + amount;
+
+        await set(userRef, data);
+
+        // ✅ Record Transaction in global node
+        const txRef = ref(db, "transactions");
+        const newTx = {
+            userId: currentUserId,
             from: fromAcc.type,
             to: toAcc.type,
             amount,
+            type: "transfer",
             date: new Date().toLocaleString()
-        });
+        };
+        await push(txRef, newTx);
 
-        alert("Transfer successful!");
+        alert("✅ Transfer successful!");
         closeModal("transferModal");
         loadAccounts();
-        loadTransactions();
     });
 
-    // Create new internal account
-    document.getElementById("createAccountForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const type = document.getElementById("accountType").value;
-        const deposit = parseFloat(document.getElementById("initialDeposit").value) || 0;
-
-        const newAccRef = push(ref(db, "accounts/" + currentUserId));
-        await set(newAccRef, {
-            type,
-            balance: deposit,
-            accountNumber: Math.floor(100000 + Math.random() * 900000)
-        });
-
-        alert("New account created!");
-        closeModal("createModal");
-        loadAccounts();
-    });
-
-    // Load transactions
+    // ✅ Load Transactions (transfer only)
     async function loadTransactions() {
         const txList = document.getElementById("transactionsList");
-        txList.innerHTML = "";
+        txList.innerHTML = "<p>Loading...</p>";
 
-        const txRef = ref(db, "transactions/" + currentUserId);
-        const snapshot = await get(txRef);
+        const txRef = ref(db, "transactions");
+        const txSnap = await get(txRef);
 
-        if (snapshot.exists()) {
-            const transactions = Object.values(snapshot.val()).reverse();
-            if (transactions.length === 0) {
-                txList.innerHTML = "<p>No transactions yet.</p>";
-                return;
-            }
-
-            transactions.forEach(tx => {
-                if (!tx.from || !tx.to) return;
-                const div = document.createElement("div");
-                div.classList.add("testimonial-card");
-                div.innerHTML = `
-                    <div class="testimonial-text">
-                        <strong>Transfer from ${tx.from}</strong> to ${tx.to} — ${tx.date}
-                    </div>
-                    <div style="color:blue;">R${tx.amount.toFixed(2)}</div>
-                `;
-                txList.appendChild(div);
-            });
-        } else {
+        if (!txSnap.exists()) {
             txList.innerHTML = "<p>No transactions yet.</p>";
+            return;
         }
+
+        // Filter only transfer transactions for this user
+        const transactions = Object.values(txSnap.val())
+            .filter(tx => tx.type === "transfer" && tx.userId === currentUserId)
+            .reverse();
+
+        if (transactions.length === 0) {
+            txList.innerHTML = "<p>No transactions yet.</p>";
+            return;
+        }
+
+        txList.innerHTML = `
+            <table style="width:100%; border-collapse:collapse; color:#333;">
+                <tr style="background:#004080; color:#fff;">
+                    <th style="padding:8px;">From</th>
+                    <th>To</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                </tr>
+                ${transactions.map(tx => `
+                    <tr style="border-bottom:1px solid #ddd;">
+                        <td>${tx.from}</td>
+                        <td>${tx.to}</td>
+                        <td>R${parseFloat(tx.amount).toFixed(2)}</td>
+                        <td>${tx.date}</td>
+                    </tr>
+                `).join("")}
+            </table>
+        `;
     }
 
-    // Modal handling
+    // ✅ Auth
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUserId = user.uid;
+            loadAccounts();
+        } else {
+            window.location.href = "/";
+        }
+    });
+
+    // ✅ Modals
     window.openModal = (id) => document.getElementById(id).style.display = "block";
     window.closeModal = (id) => document.getElementById(id).style.display = "none";
-    window.onclick = function (event) {
+    window.onclick = (event) => {
         document.querySelectorAll(".modal").forEach(modal => {
             if (event.target === modal) modal.style.display = "none";
         });
     };
 </script>
-
 </body>
 </html>
